@@ -977,7 +977,7 @@ private[hive] class HiveClientImpl(
       tableName: String,
       partSpec: java.util.LinkedHashMap[String, String],
       replace: Boolean,
-      numDP: Int): Unit = withHiveState {
+      numDP: Int): Seq[Map[String, String]] = withHiveState {
     val hiveTable = shim.getTable(client, dbName, tableName, true /* throw exception */)
     shim.loadDynamicPartitions(
       client,
@@ -987,6 +987,10 @@ private[hive] class HiveClientImpl(
       replace,
       numDP,
       listBucketingEnabled = hiveTable.isStoredAsSubDirectories)
+      .keySet()
+      .asScala
+      .toSeq
+      .map(_.asScala.toMap)
   }
 
   override def createFunction(db: String, func: CatalogFunction): Unit = withHiveState {

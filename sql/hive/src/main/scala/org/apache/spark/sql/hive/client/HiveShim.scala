@@ -198,7 +198,7 @@ private[client] sealed abstract class Shim {
       partSpec: JMap[String, String],
       replace: Boolean,
       numDP: Int,
-      listBucketingEnabled: Boolean): Unit
+      listBucketingEnabled: Boolean): JMap[JMap[String, String], Partition]
 
   def createFunction(hive: Hive, db: String, func: CatalogFunction): Unit
 
@@ -492,10 +492,11 @@ private[client] class Shim_v0_12 extends Shim with Logging {
       partSpec: JMap[String, String],
       replace: Boolean,
       numDP: Int,
-      listBucketingEnabled: Boolean): Unit = {
+      listBucketingEnabled: Boolean): JMap[JMap[String, String], Partition] = {
     recordHiveCall()
-    loadDynamicPartitionsMethod.invoke(hive, loadPath, tableName, partSpec, replace: JBoolean,
-      numDP: JInteger, holdDDLTime, listBucketingEnabled: JBoolean)
+    loadDynamicPartitionsMethod.invoke(
+      hive, loadPath, tableName, partSpec, replace: JBoolean, numDP: JInteger, holdDDLTime,
+      listBucketingEnabled: JBoolean).asInstanceOf[JMap[JMap[String, String], Partition]]
   }
 
   override def dropIndex(hive: Hive, dbName: String, tableName: String, indexName: String): Unit = {
@@ -1313,10 +1314,11 @@ private[client] class Shim_v0_14 extends Shim_v0_13 {
       partSpec: JMap[String, String],
       replace: Boolean,
       numDP: Int,
-      listBucketingEnabled: Boolean): Unit = {
+      listBucketingEnabled: Boolean): JMap[JMap[String, String], Partition] = {
     recordHiveCall()
     loadDynamicPartitionsMethod.invoke(hive, loadPath, tableName, partSpec, replace: JBoolean,
       numDP: JInteger, holdDDLTime, listBucketingEnabled: JBoolean, isAcid)
+      .asInstanceOf[JMap[JMap[String, String], Partition]]
   }
 
   override def dropTable(
@@ -1404,11 +1406,11 @@ private[client] class Shim_v1_2 extends Shim_v1_1 {
       partSpec: JMap[String, String],
       replace: Boolean,
       numDP: Int,
-      listBucketingEnabled: Boolean): Unit = {
+      listBucketingEnabled: Boolean): JMap[JMap[String, String], Partition] = {
     recordHiveCall()
     loadDynamicPartitionsMethod.invoke(hive, loadPath, tableName, partSpec, replace: JBoolean,
       numDP: JInteger, holdDDLTime, listBucketingEnabled: JBoolean, isAcid,
-      txnIdInLoadDynamicPartitions)
+      txnIdInLoadDynamicPartitions).asInstanceOf[JMap[JMap[String, String], Partition]]
   }
 
   override def dropPartition(
@@ -1496,10 +1498,11 @@ private[client] class Shim_v2_0 extends Shim_v1_2 {
       partSpec: JMap[String, String],
       replace: Boolean,
       numDP: Int,
-      listBucketingEnabled: Boolean): Unit = {
+      listBucketingEnabled: Boolean): JMap[JMap[String, String], Partition] = {
     recordHiveCall()
     loadDynamicPartitionsMethod.invoke(hive, loadPath, tableName, partSpec, replace: JBoolean,
       numDP: JInteger, listBucketingEnabled: JBoolean, isAcid, txnIdInLoadDynamicPartitions)
+      .asInstanceOf[JMap[JMap[String, String], Partition]]
   }
 
 }
@@ -1598,11 +1601,12 @@ private[client] class Shim_v2_1 extends Shim_v2_0 {
       partSpec: JMap[String, String],
       replace: Boolean,
       numDP: Int,
-      listBucketingEnabled: Boolean): Unit = {
+      listBucketingEnabled: Boolean): JMap[JMap[String, String], Partition] = {
     recordHiveCall()
     loadDynamicPartitionsMethod.invoke(hive, loadPath, tableName, partSpec, replace: JBoolean,
       numDP: JInteger, listBucketingEnabled: JBoolean, isAcid, txnIdInLoadDynamicPartitions,
       hasFollowingStatsTask, AcidUtils.Operation.NOT_ACID)
+      .asInstanceOf[JMap[JMap[String, String], Partition]]
   }
 
   override def alterTable(hive: Hive, tableName: String, table: Table): Unit = {
@@ -1749,7 +1753,7 @@ private[client] class Shim_v3_0 extends Shim_v2_3 {
       partSpec: JMap[String, String],
       replace: Boolean,
       numDP: Int,
-      listBucketingEnabled: Boolean): Unit = {
+      listBucketingEnabled: Boolean): JMap[JMap[String, String], Partition] = {
     val loadFileType = if (replace) {
       clazzLoadFileType.getEnumConstants.find(_.toString.equalsIgnoreCase("REPLACE_ALL"))
     } else {
@@ -1757,10 +1761,13 @@ private[client] class Shim_v3_0 extends Shim_v2_3 {
     }
     assert(loadFileType.isDefined)
     recordHiveCall()
-    loadDynamicPartitionsMethod.invoke(hive, loadPath, tableName, partSpec, loadFileType.get,
-      numDP: JInteger, listBucketingLevel, isAcid, writeIdInLoadTableOrPartition,
-      stmtIdInLoadTableOrPartition, hasFollowingStatsTask, AcidUtils.Operation.NOT_ACID,
-      replace: JBoolean)
+    loadDynamicPartitionsMethod.invoke(
+      hive, loadPath, tableName, partSpec, loadFileType.get,
+      numDP: JInteger, listBucketingLevel, isAcid,
+      writeIdInLoadTableOrPartition,
+      stmtIdInLoadTableOrPartition, hasFollowingStatsTask,
+      AcidUtils.Operation.NOT_ACID,
+      replace: JBoolean).asInstanceOf[JMap[JMap[String, String], Partition]]
   }
 }
 

@@ -21,7 +21,6 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.ql.plan.TableDesc
-
 import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.catalyst.catalog._
 import org.apache.spark.sql.catalyst.catalog.CatalogTypes.TablePartitionSpec
@@ -36,6 +35,8 @@ import org.apache.spark.sql.hive.HiveExternalCatalog
 import org.apache.spark.sql.hive.HiveShim.{ShimFileSinkDesc => FileSinkDesc}
 import org.apache.spark.sql.hive.client.HiveClientImpl
 import org.apache.spark.sql.hive.client.hive._
+import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.types.{StringType, StructField, StructType}
 
 
 /**
@@ -101,8 +102,9 @@ case class InsertIntoHiveTable(
     val tmpLocation = hiveTmpPath.externalTempPath
 
     hiveTmpPath.createTmpPath()
+    var res = Seq.empty[Map[String, String]]
     try {
-      processInsert(sparkSession, externalCatalog, hadoopConf, tmpLocation, child)
+      res = processInsert(sparkSession, externalCatalog, hadoopConf, tmpLocation, child)
     } finally {
       // Attempt to delete the staging directory and the inclusive files. If failed, the files are
       // expected to be dropped at the normal termination of VM since deleteOnExit is used.
@@ -114,6 +116,19 @@ case class InsertIntoHiveTable(
     sparkSession.sessionState.catalog.refreshTable(table.identifier)
 
     CommandUtils.updateTableStats(sparkSession, table)
+
+    if (res.nonEmpty && conf.getConf(SQLConf.ENABLE_DYNAMIC_PARTITION_SAVE_PARTITIONS)) {
+      val header = res.head.keySet.toList
+      val rows = res.map(m => Row.fromSeq(header.map(m(_))))
+      val structType = StructType(header.map(key => {
+        StructField(key, StringType, true)
+      }))
+      val df = sparkSession.createDataFrame(sparkSession.sparkContext.parallelize(rows), structType)
+      df.createOrReplaceTempView(
+        s"${conf.getConf(SQLConf.DYNAMIC_PARTITION_SAVE_PARTITIONS_TABLE_NAME_PREFIX)}" +
+          s"_${table.identifier.database.getOrElse("")}_${table.identifier.table}"
+      )
+    }
 
     // It would be nice to just return the childRdd unchanged so insert operations could be chained,
     // however for now we return an empty list to simplify compatibility checks with hive, which
@@ -127,7 +142,7 @@ case class InsertIntoHiveTable(
       externalCatalog: ExternalCatalog,
       hadoopConf: Configuration,
       tmpLocation: Path,
-      child: SparkPlan): Unit = {
+      child: SparkPlan): Seq[Map[String, String]] = {
 
     val numDynamicPartitions = partition.values.count(_.isEmpty)
     val partitionSpec = getPartitionSpec(partition)
@@ -270,6 +285,7 @@ case class InsertIntoHiveTable(
             inheritTableSpecs = inheritTableSpecs,
             isSrcLocal = false)
         }
+        Seq.empty[Map[String, String]]
       }
     } else {
       externalCatalog.loadTable(
@@ -278,6 +294,7 @@ case class InsertIntoHiveTable(
         tmpLocation.toString, // TODO: URI
         overwrite,
         isSrcLocal = false)
+      Seq.empty[Map[String, String]]
     }
   }
 
