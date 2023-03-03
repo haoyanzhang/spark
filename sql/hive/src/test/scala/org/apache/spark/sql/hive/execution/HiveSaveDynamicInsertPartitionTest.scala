@@ -27,22 +27,14 @@ class HiveSaveDynamicInsertPartitionTest extends HivePlanTest with SQLTestUtils 
 
   private val tableNamePrefix =
     TestHive.getConf(SQLConf.DYNAMIC_PARTITION_SAVE_PARTITIONS_TABLE_NAME_PREFIX.key)
-  private val originHiveExecDynamicPartition =
-    TestHive.getConf("hive.exec.dynamic.partition")
-  private val originHiveExecDynamicPartitionMode =
-    TestHive.getConf("hive.exec.dynamic.partition.mode")
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    TestHive.setConf("hive.exec.dynamic.partition", "true")
-    TestHive.setConf("hive.exec.dynamic.partition.mode", "nonstrict")
     TestHive.setConf(SQLConf.ENABLE_DYNAMIC_PARTITION_SAVE_PARTITIONS, true)
   }
 
   override def afterAll(): Unit = {
     try {
-      TestHive.setConf("hive.exec.dynamic.partition", originHiveExecDynamicPartition)
-      TestHive.setConf("hive.exec.dynamic.partition.mode", originHiveExecDynamicPartitionMode)
       TestHive.setConf(SQLConf.ENABLE_DYNAMIC_PARTITION_SAVE_PARTITIONS, false)
     } finally {
       super.afterAll()
@@ -51,27 +43,31 @@ class HiveSaveDynamicInsertPartitionTest extends HivePlanTest with SQLTestUtils 
 
   test("test_save_dynamic_partition") {
     withTable("test") {
-      sql(
-        s"""
-           |CREATE TABLE test(i int)
-           |PARTITIONED BY (p int)
-           |STORED AS textfile""".stripMargin)
+      withSQLConf(
+        "hive.exec.dynamic.partition" -> "true",
+        "hive.exec.dynamic.partition.mode" -> "nonstrict"
+      ) {
+        sql(
+          s"""
+             |CREATE TABLE test(i int)
+             |PARTITIONED BY (p int)
+             |STORED AS textfile""".stripMargin)
 
-      sql(
-        s"""
-           |INSERT OVERWRITE TABLE test PARTITION (p)
-           |select 1 as i, 2 as p""".stripMargin)
+        sql(
+          s"""
+             |INSERT OVERWRITE TABLE test PARTITION (p)
+             |select 1 as i, 2 as p""".stripMargin)
 
-      val df = sql(
-        s"""
-           |SELECT * FROM TABLE ${tableNamePrefix}_default_test
-           |""".stripMargin
-      )
+        val df = sql(
+          s"""
+             |SELECT * FROM TABLE ${tableNamePrefix}_default_test
+             |""".stripMargin
+        )
 
-      val rows = df.collect()
-      assert(rows.length == 1)
-      assert(rows(0).getAs[String]("p") == "2")
-
+        val rows = df.collect()
+        assert(rows.length == 1)
+        assert(rows(0).getAs[String]("p") == "2")
+      }
     }
   }
 

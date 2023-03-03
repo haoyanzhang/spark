@@ -494,9 +494,14 @@ private[client] class Shim_v0_12 extends Shim with Logging {
       numDP: Int,
       listBucketingEnabled: Boolean): JMap[JMap[String, String], Partition] = {
     recordHiveCall()
-    loadDynamicPartitionsMethod.invoke(
+    val result = loadDynamicPartitionsMethod.invoke(
       hive, loadPath, tableName, partSpec, replace: JBoolean, numDP: JInteger, holdDDLTime,
-      listBucketingEnabled: JBoolean).asInstanceOf[JMap[JMap[String, String], Partition]]
+      listBucketingEnabled: JBoolean)
+    result match {
+      case result: JMap[JMap[String, String], Partition] => result
+      case result: JList[Any] => throw new RuntimeException(s"${result.get(0).getClass}")
+      case result: _ => throw new RuntimeException(s"${result.getClass.getName}")
+    }
   }
 
   override def dropIndex(hive: Hive, dbName: String, tableName: String, indexName: String): Unit = {
