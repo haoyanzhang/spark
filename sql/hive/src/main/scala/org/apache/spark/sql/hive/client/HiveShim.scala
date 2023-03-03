@@ -198,7 +198,7 @@ private[client] sealed abstract class Shim {
       partSpec: JMap[String, String],
       replace: Boolean,
       numDP: Int,
-      listBucketingEnabled: Boolean): JMap[JMap[String, String], Partition]
+      listBucketingEnabled: Boolean): Seq[Map[String, String]]
 
   def createFunction(hive: Hive, db: String, func: CatalogFunction): Unit
 
@@ -492,16 +492,12 @@ private[client] class Shim_v0_12 extends Shim with Logging {
       partSpec: JMap[String, String],
       replace: Boolean,
       numDP: Int,
-      listBucketingEnabled: Boolean): JMap[JMap[String, String], Partition] = {
+      listBucketingEnabled: Boolean): Seq[Map[String, String]] = {
     recordHiveCall()
     val result = loadDynamicPartitionsMethod.invoke(
       hive, loadPath, tableName, partSpec, replace: JBoolean, numDP: JInteger, holdDDLTime,
       listBucketingEnabled: JBoolean)
-    result match {
-      case result: JMap[JMap[String, String], Partition] => result
-      case result: JList[Any] => throw new RuntimeException(s"${result.get(0).getClass}")
-      case result: _ => throw new RuntimeException(s"${result.getClass.getName}")
-    }
+    result.asInstanceOf[JList[JMap[String, String]]].asScala.map(_.asScala.toMap)
   }
 
   override def dropIndex(hive: Hive, dbName: String, tableName: String, indexName: String): Unit = {
@@ -1319,11 +1315,12 @@ private[client] class Shim_v0_14 extends Shim_v0_13 {
       partSpec: JMap[String, String],
       replace: Boolean,
       numDP: Int,
-      listBucketingEnabled: Boolean): JMap[JMap[String, String], Partition] = {
+      listBucketingEnabled: Boolean): Seq[Map[String, String]] = {
     recordHiveCall()
-    loadDynamicPartitionsMethod.invoke(hive, loadPath, tableName, partSpec, replace: JBoolean,
-      numDP: JInteger, holdDDLTime, listBucketingEnabled: JBoolean, isAcid)
-      .asInstanceOf[JMap[JMap[String, String], Partition]]
+    val result = loadDynamicPartitionsMethod.invoke(hive, loadPath, tableName,
+      partSpec, replace: JBoolean, numDP: JInteger, holdDDLTime,
+      listBucketingEnabled: JBoolean, isAcid)
+    result.asInstanceOf[JMap[JMap[String, String], Partition]].asScala.map(_._1.asScala.toMap).toSeq
   }
 
   override def dropTable(
@@ -1411,11 +1408,12 @@ private[client] class Shim_v1_2 extends Shim_v1_1 {
       partSpec: JMap[String, String],
       replace: Boolean,
       numDP: Int,
-      listBucketingEnabled: Boolean): JMap[JMap[String, String], Partition] = {
+      listBucketingEnabled: Boolean): Seq[Map[String, String]] = {
     recordHiveCall()
-    loadDynamicPartitionsMethod.invoke(hive, loadPath, tableName, partSpec, replace: JBoolean,
-      numDP: JInteger, holdDDLTime, listBucketingEnabled: JBoolean, isAcid,
-      txnIdInLoadDynamicPartitions).asInstanceOf[JMap[JMap[String, String], Partition]]
+    val result = loadDynamicPartitionsMethod.invoke(hive, loadPath, tableName,
+      partSpec, replace: JBoolean, numDP: JInteger, holdDDLTime,
+      listBucketingEnabled: JBoolean, isAcid, txnIdInLoadDynamicPartitions)
+    result.asInstanceOf[JMap[JMap[String, String], Partition]].asScala.map(_._1.asScala.toMap).toSeq
   }
 
   override def dropPartition(
@@ -1503,11 +1501,12 @@ private[client] class Shim_v2_0 extends Shim_v1_2 {
       partSpec: JMap[String, String],
       replace: Boolean,
       numDP: Int,
-      listBucketingEnabled: Boolean): JMap[JMap[String, String], Partition] = {
+      listBucketingEnabled: Boolean): Seq[Map[String, String]] = {
     recordHiveCall()
-    loadDynamicPartitionsMethod.invoke(hive, loadPath, tableName, partSpec, replace: JBoolean,
-      numDP: JInteger, listBucketingEnabled: JBoolean, isAcid, txnIdInLoadDynamicPartitions)
-      .asInstanceOf[JMap[JMap[String, String], Partition]]
+    val result = loadDynamicPartitionsMethod.invoke(hive, loadPath, tableName, partSpec,
+      replace: JBoolean, numDP: JInteger, listBucketingEnabled: JBoolean,
+      isAcid, txnIdInLoadDynamicPartitions)
+    result.asInstanceOf[JMap[JMap[String, String], Partition]].asScala.map(_._1.asScala.toMap).toSeq
   }
 
 }
@@ -1606,12 +1605,12 @@ private[client] class Shim_v2_1 extends Shim_v2_0 {
       partSpec: JMap[String, String],
       replace: Boolean,
       numDP: Int,
-      listBucketingEnabled: Boolean): JMap[JMap[String, String], Partition] = {
+      listBucketingEnabled: Boolean): Seq[Map[String, String]] = {
     recordHiveCall()
-    loadDynamicPartitionsMethod.invoke(hive, loadPath, tableName, partSpec, replace: JBoolean,
-      numDP: JInteger, listBucketingEnabled: JBoolean, isAcid, txnIdInLoadDynamicPartitions,
-      hasFollowingStatsTask, AcidUtils.Operation.NOT_ACID)
-      .asInstanceOf[JMap[JMap[String, String], Partition]]
+    val result = loadDynamicPartitionsMethod.invoke(hive, loadPath, tableName, partSpec,
+      replace: JBoolean, numDP: JInteger, listBucketingEnabled: JBoolean, isAcid,
+      txnIdInLoadDynamicPartitions, hasFollowingStatsTask, AcidUtils.Operation.NOT_ACID)
+    result.asInstanceOf[JMap[JMap[String, String], Partition]].asScala.map(_._1.asScala.toMap).toSeq
   }
 
   override def alterTable(hive: Hive, tableName: String, table: Table): Unit = {
@@ -1758,7 +1757,7 @@ private[client] class Shim_v3_0 extends Shim_v2_3 {
       partSpec: JMap[String, String],
       replace: Boolean,
       numDP: Int,
-      listBucketingEnabled: Boolean): JMap[JMap[String, String], Partition] = {
+      listBucketingEnabled: Boolean): Seq[Map[String, String]] = {
     val loadFileType = if (replace) {
       clazzLoadFileType.getEnumConstants.find(_.toString.equalsIgnoreCase("REPLACE_ALL"))
     } else {
@@ -1766,13 +1765,14 @@ private[client] class Shim_v3_0 extends Shim_v2_3 {
     }
     assert(loadFileType.isDefined)
     recordHiveCall()
-    loadDynamicPartitionsMethod.invoke(
+    val result = loadDynamicPartitionsMethod.invoke(
       hive, loadPath, tableName, partSpec, loadFileType.get,
       numDP: JInteger, listBucketingLevel, isAcid,
       writeIdInLoadTableOrPartition,
       stmtIdInLoadTableOrPartition, hasFollowingStatsTask,
       AcidUtils.Operation.NOT_ACID,
-      replace: JBoolean).asInstanceOf[JMap[JMap[String, String], Partition]]
+      replace: JBoolean)
+    result.asInstanceOf[JMap[JMap[String, String], Partition]].asScala.map(_._1.asScala.toMap).toSeq
   }
 }
 
